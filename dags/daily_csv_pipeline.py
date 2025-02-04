@@ -12,7 +12,7 @@ from airflow.utils.dates import days_ago
 
 load_dotenv()
 
-# AWS S3에 접근할 수 있도록 하드코딩된 AWS 자격 증명 사용
+# AWS S3에 접근할 수 있도록 AWS 자격 증명 사용
 aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 
@@ -179,7 +179,7 @@ default_args = {
 }
 
 with DAG(
-    'daily_test_data_pipeline',
+    'daily_csv_pipeline',
     default_args=default_args,
     description='일간 박스오피스 데이터 수집 및 S3 업로드 파이프라인',
     schedule_interval='0 0 * * *',  # 매일 오전 9시에 실행
