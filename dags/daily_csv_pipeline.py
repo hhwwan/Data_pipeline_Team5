@@ -12,18 +12,22 @@ from airflow.utils.dates import days_ago
 
 load_dotenv()
 
-# AWS S3에 접근할 수 있도록 AWS 자격 증명 사용
-aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+API_KEY = os.getenv('API_KEY')
+BUCKET_NAME = "airflow-project3"
+REDSHIFT_DSN = os.getenv('REDSHIFT_DSN')
+AWS_ACCOUNT_ID = os.getenv('AWS_ACCOUNT_ID')
+AWS_ROLE = os.getenv('AWS_ROLE')
 
-def extract_box_office_data(api_key, target_date):
+def extract_box_office_data(target_date):
     """
     API에서 일별 박스오피스 데이터를 가져와 메모리 상에서 CSV 형식으로 반환
     """
     print("API에서 데이터 수집 중...")
     url = "http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
     params = {
-        "key": api_key,
+        "key": API_KEY,
         "targetDt": target_date
     }
     response = requests.get(url, params=params)
@@ -102,23 +106,21 @@ def update_csv_headers(csv_data, target_date):
     # 수정된 데이터 합치기
     return '\n'.join([lines[0]] + updated_lines)
 
-def upload_to_s3(csv_data, bucket_name, s3_file_name):
+def upload_to_s3(csv_data, s3_file_name):
     print("S3에 데이터 업로드 중...")
     
-    s3_client = boto3.client('s3', 
-                            aws_access_key_id=aws_access_key_id, 
-                            aws_secret_access_key=aws_secret_access_key)
+    s3_client = boto3.client('s3', AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
     
     file_obj = io.BytesIO(csv_data.encode('utf-8'))
-    s3_client.upload_fileobj(file_obj, bucket_name, s3_file_name)
-    print(f"파일이 S3에 업로드되었습니다: {bucket_name}/{s3_file_name}")
+    s3_client.upload_fileobj(file_obj, BUCKET_NAME, s3_file_name)
+    print(f"파일이 S3에 업로드되었습니다: {BUCKET_NAME}/{s3_file_name}")
 
-def create_redshift_table(redshift_dsn, table_name, target_date):
+def create_redshift_table(table_name, target_date):
     """
     새로운 Redshift 테이블을 생성 (이미 존재하면 생성하지 않음)
     """
     print(f"Redshift 테이블 생성 중: {table_name}")
-    conn = psycopg2.connect(redshift_dsn)
+    conn = psycopg2.connect(REDSHIFT_DSN)
     cur = conn.cursor()
     
     create_table_query = f"""
@@ -151,18 +153,18 @@ def create_redshift_table(redshift_dsn, table_name, target_date):
     conn.close()
     print("테이블 생성 완료")
 
-def load_to_redshift(redshift_dsn, s3_path, table_name, account_id, role):
+def load_to_redshift(s3_path, table_name):
     """
     Redshift 테이블로 적재
     """
     print(f"{table_name} 테이블에 데이터 적재 중...")
-    conn = psycopg2.connect(redshift_dsn)
+    conn = psycopg2.connect(REDSHIFT_DSN)
     cur = conn.cursor()
 
     copy_query = f"""
         COPY raw_data."{table_name}"
         FROM '{s3_path}'
-        credentials 'aws_iam_role=arn:aws:iam::{account_id}:role/{role}'
+        credentials 'aws_iam_role=arn:aws:iam::{AWS_ACCOUNT_ID}:role/{AWS_ROLE}'
         delimiter ',' dateformat 'auto' timeformat 'auto' IGNOREHEADER 1 removequotes;
     """
     cur.execute(copy_query)
@@ -186,27 +188,16 @@ with DAG(
 ) as dag:
 
     # 태스크 정의
-    # api키
-    api_key = os.getenv('API_KEY')
-
     yesterday = datetime.now() - timedelta(days=1)
     target_date = yesterday.strftime("%Y%m%d")
-
-    # S3설정
-    bucket_name = "airflow-project3"
     s3_file_name = f"daily_box_office_data_{target_date}.csv"
-    s3_path = f"s3://{bucket_name}/{s3_file_name}"
-
-    #Redshift 설정
-    redshift_dsn = os.getenv('REDSHIFT_DSN')
-    aws_account_id = os.getenv('AWS_ACCOUNT_ID')
-    role = os.getenv('AWS_ROLE')
+    s3_path = f"s3://{BUCKET_NAME}/{s3_file_name}"
     table_name = f"{target_date}_box_office"
 
     task_extract_data = PythonOperator(
         task_id='extract_box_office_data',
         python_callable=extract_box_office_data,
-        op_args=[api_key, target_date],
+        op_args=[target_date],
     )
 
     task_update_headers = PythonOperator(
@@ -218,19 +209,19 @@ with DAG(
     task_upload_to_s3 = PythonOperator(
         task_id='upload_to_s3',
         python_callable=upload_to_s3,
-        op_args=["{{ ti.xcom_pull(task_ids='update_csv_headers') }}", bucket_name, s3_file_name],
+        op_args=["{{ ti.xcom_pull(task_ids='update_csv_headers') }}",s3_file_name],
     )
 
     task_create_redshift_table = PythonOperator(
         task_id='create_redshift_table',
         python_callable=create_redshift_table,
-        op_args=[redshift_dsn, table_name, target_date],
+        op_args=[table_name, target_date],
     )
 
     task_load_to_redshift = PythonOperator(
         task_id='load_to_redshift',
         python_callable=load_to_redshift,
-        op_args=[redshift_dsn, s3_path, table_name, aws_account_id, role],
+        op_args=[s3_path, table_name],
     )
 
     # 태스크 실행 순서 지정
