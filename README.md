@@ -2,7 +2,7 @@
 ## 주제: Airflow와 dbt를 활용한 영화 산업 데이터 분석
 ## Programmers 데브코스 Data Engineering 5기
 - <b>Team</b>`하이파이브`
-  - <b>전병운 `Airflow와 DBT를 이용한 데이터 ETL 작업 및 ELT작업 및 스크린수와 영화 흥행의 상관관계 분석 대시보드 제작 `</b>
+  - <b>전병운 `Airflow와 DBT를 이용한 데이터 ETL 작업 및 ELT작업 및 스크린수와 영화 흥행의 상관관계 분석 대시보드 제작`</b>
   - <b>김동환 `Airflow와 DBT를 이용한 데이터 ETL 작업 및 ELT작업 및 관객수와 매출액의 상관관계 분석 대시보드 제작`</b>
   - <b>설연수 `Airflow와 DBT를 이용한 데이터 ETL 작업 및 ELT작업 및 시즌별 장르와 관객 수의 상관관계 분석 대시보드 제작`</b>
   - <b>최은주 `Airflow와 DBT를 이용한 데이터 ETL 작업 및 ELT작업 및 영화사, 영화 배우 관련 대시보드 제작`</b>
